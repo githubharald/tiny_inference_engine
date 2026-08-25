@@ -26,9 +26,8 @@ The demo runs ResNet18 on ImageNet images. Make sure to run all commands from th
 
 Convert the pretrained TorchVision model to the custom model format. The model gets stored in the folder `model/`.
 
-```python export_resnet.py```
-
-You need numpy, onnx, torch and torchvision installed.
+* First make sure the python dependencies are installed: ```pip install -r requirements.txt```
+* Then run the script: ```python export_resnet.py```
 
 ### Build demo
 
@@ -41,7 +40,8 @@ cmake --build build --config Release
 
 ### Run demo
 
-Two ImageNet samples are provided. Run the binary using the exported model (in model/) and the sample images (in data/):
+Two ImageNet samples are provided. Run the binary (```build/tiny_inference_engine```) using the exported model (in
+```model/```) and the sample images (in ```data/```):
 
 ```build/tiny_inference_engine model/ data/```
 

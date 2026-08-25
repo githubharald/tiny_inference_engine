@@ -1,12 +1,11 @@
 """Exports pretrained ResNet18 model from TorchVision to custom format of tiny inference engine."""
 
-import struct
-from graphlib import TopologicalSorter
-from pathlib import Path
-
 import numpy as np
 import onnx
+import struct
 import torch
+from graphlib import TopologicalSorter
+from pathlib import Path
 from torchvision.models import resnet18, ResNet18_Weights
 from typing import Any
 
