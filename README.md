@@ -1,4 +1,4 @@
-# Tiny C++ Inference Engine
+# Tiny Inference Engine
 
 A lightweight CPU inference engine for ResNet and similar computer vision models. Written in pure C++ using Eigen for
 fast matrix operations.
