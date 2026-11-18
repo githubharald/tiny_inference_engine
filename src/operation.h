@@ -6,7 +6,6 @@
 #include <map>
 #include <string>
 
-#define GEMM_BASED_CONV
 
 namespace inference_engine {
     /// all named tensors required for the model inference (including temporary results)
@@ -23,6 +22,8 @@ namespace inference_engine {
         virtual std::vector<std::string> get_initializer_names() { return {}; }
 
         virtual ~IOperation() = default;
+
+        std::string identifier;
     };
 
     class Identity : public IOperation {
@@ -139,11 +140,15 @@ namespace inference_engine {
              const std::string &weight_name,
              const std::string &bias_name,
              int pad,
-             int stride);
+             int stride,
+             bool apply_relu);
 
         std::vector<std::string> get_initializer_names() override;
 
         void compute(VariableStore &variable_store) override;
+
+        void set_shards(int s) { m_configured_shards = s; }
+        int get_max_shards() const { return m_possible_max_shards; }
 
     private:
         std::string m_var_name_out;
@@ -152,17 +157,23 @@ namespace inference_engine {
         std::string m_bias_name;
         int m_pad;
         int m_stride;
-#ifdef GEMM_BASED_CONV
+        bool m_apply_relu;
+
         // cache tensors for gemm-based conv
         Tensor m_img_patch_mat;
         Tensor m_kernel_mat;
-#endif
+
+        int m_possible_max_shards = 0;
+        int m_configured_shards = 12;
     };
 
 
     class Add : public IOperation {
     public:
-        Add(const std::string &var_name_out, const std::string &var_name_in_1, const std::string &var_name_in_2);
+        Add(const std::string &var_name_out,
+            const std::string &var_name_in_1,
+            const std::string &var_name_in_2,
+            bool apply_relu);
 
         void compute(VariableStore &variable_store) override;
 
@@ -170,6 +181,7 @@ namespace inference_engine {
         std::string m_var_name_out;
         std::string m_var_name_in_1;
         std::string m_var_name_in_2;
+        bool m_apply_relu;
     };
 }
 

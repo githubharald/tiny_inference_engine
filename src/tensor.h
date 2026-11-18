@@ -5,7 +5,6 @@
 #include <stdexcept>
 #include <cmath>
 
-//#define CHECK_TENSOR_SHAPE
 
 namespace inference_engine {
     using Shape = std::vector<int>;
@@ -50,6 +49,9 @@ namespace inference_engine {
             }
             return false;
         }
+
+        DataElement *data_ptr() { return data.data(); }
+        [[nodiscard]] const DataElement *data_ptr() const { return data.data(); }
 
         [[nodiscard]] DataElement get(const int i0) const {
 #ifdef CHECK_TENSOR_SHAPE

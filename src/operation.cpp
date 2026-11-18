@@ -7,10 +7,10 @@
 
 #include <iostream>
 #include <algorithm>
-#include <thread>
 #include <stdexcept>
 
 #include "conv2d.h"
+#include "maxpool2d.h"
 
 namespace inference_engine {
     Tensor &zeros_cached(VariableStore &variable_store, const std::string &var_name, const Shape &shape) {
@@ -111,31 +111,17 @@ namespace inference_engine {
         const auto &in_tensor = variable_store.at(m_var_name_in);
 
         // output
+        const int height_out = (in_tensor.shape[1] + 2 * m_pad - m_kernel) / m_stride + 1;
+        const int width_out = (in_tensor.shape[2] + 2 * m_pad - m_kernel) / m_stride + 1;
         auto &out_tensor = zeros_cached(variable_store,
-                                       m_var_name_out, {
-                                           in_tensor.shape[0],
-                                           (in_tensor.shape[1] + 2 * m_pad - m_kernel) / m_stride + 1,
-                                           (in_tensor.shape[2] + 2 * m_pad - m_kernel) / m_stride + 1
-                                       });
-        for (int c = 0; c < out_tensor.shape[0]; c++) {
-            for (int y = 0; y < out_tensor.shape[1]; y++) {
-                for (int x = 0; x < out_tensor.shape[2]; x++) {
-                    float max_val = std::numeric_limits<float>::lowest();
-                    for (int ky = 0; ky < m_kernel; ky++) {
-                        for (int kx = 0; kx < m_kernel; kx++) {
-                            const int y_in = m_stride * y + ky - m_pad;
-                            const int x_in = m_stride * x + kx - m_pad;
+                                        m_var_name_out, {
+                                            in_tensor.shape[0],
+                                            height_out,
+                                            width_out
+                                        });
 
-                            if (y_in < 0 || y_in >= in_tensor.shape[1] || x_in < 0 || x_in >= in_tensor.shape[2]) {
-                                continue;
-                            }
-                            max_val = std::max(max_val, in_tensor.get_3d(c, y_in, x_in));
-                        }
-                    }
-                    out_tensor.get_3d(c, y, x) = max_val;
-                }
-            }
-        }
+        // compute
+        maxpool2d(in_tensor, out_tensor, m_kernel, m_pad, m_stride);
     }
 
 
@@ -150,11 +136,11 @@ namespace inference_engine {
 
         // output
         auto &out_tensor = zeros_cached(variable_store,
-                                       m_var_name_out, {
-                                           in_tensor.shape[0],
-                                           1,
-                                           1
-                                       });
+                                        m_var_name_out, {
+                                            in_tensor.shape[0],
+                                            1,
+                                            1
+                                        });
         for (int c = 0; c < in_tensor.shape[0]; c++) {
             float acc = 0;
             for (int y = 0; y < in_tensor.shape[1]; y++) {
@@ -173,9 +159,8 @@ namespace inference_engine {
     }
 
     void AveragePool::compute(VariableStore &variable_store) {
-        // TODO to support any input size, this op would need to be properly implemented
-        // we just pass through the input tensor
-        // this op is used in VGGNet, but not needed with the proper input size
+        // TODO this is just a fake implementation to support the op in its most basic form (pass-through)
+        // TODO for arbitrary input sizes, a proper implementation would be required
         variable_store[m_var_name_out] = variable_store.at(m_var_name_in);
     }
 
@@ -208,12 +193,14 @@ namespace inference_engine {
                const std::string &weight_name,
                const std::string &bias_name,
                const int pad,
-               const int stride) : m_var_name_out(var_name_out),
-                                   m_var_name_in(var_name_in),
-                                   m_weight_name(weight_name),
-                                   m_bias_name(bias_name),
-                                   m_pad(pad),
-                                   m_stride(stride) {
+               const int stride,
+               const bool apply_relu) : m_var_name_out(var_name_out),
+                                        m_var_name_in(var_name_in),
+                                        m_weight_name(weight_name),
+                                        m_bias_name(bias_name),
+                                        m_pad(pad),
+                                        m_stride(stride),
+                                        m_apply_relu(apply_relu) {
     }
 
     std::vector<std::string> Conv::get_initializer_names() {
@@ -236,70 +223,58 @@ namespace inference_engine {
         }
 
         auto &out_tensor = zeros_cached(variable_store, m_var_name_out, {
-                                           channel_out,
-                                           height / m_stride,
-                                           width / m_stride
-                                       });
+                                            channel_out,
+                                            height / m_stride,
+                                            width / m_stride
+                                        });
 
-#ifdef GEMM_BASED_CONV
-        gemm_based_conv(out_tensor, m_img_patch_mat, m_kernel_mat, kernel, in_tensor, bias, m_stride);
-#else
-        // start worker threads
-        std::vector<std::thread> workers;
-        const int num_shards = std::min({12, channel_out});
-        const int shard_size = channel_out % num_shards == 0
-                                   ? channel_out / num_shards
-                                   : channel_out / num_shards + 1;
-        for (int shard = 0; shard < num_shards; shard++) {
-            const int c_out_begin = shard * shard_size;
-            const int c_out_end = std::min({c_out_begin + shard_size, channel_out});
-            if (m_stride == 1) {
-                workers.emplace_back(sharded_conv,
-                                     std::ref(out_tensor),
-                                     std::cref(in_tensor),
-                                     std::cref(kernel),
-                                     std::cref(bias),
-                                     c_out_begin,
-                                     c_out_end
-                );
-            } else {
-                workers.emplace_back(sharded_strided_conv,
-                                     std::ref(out_tensor),
-                                     std::cref(in_tensor),
-                                     std::cref(kernel),
-                                     std::cref(bias),
-                                     c_out_begin,
-                                     c_out_end,
-                                     m_stride
-                );
-            }
-        }
-
-        // wait for the to finish
-        for (auto &t: workers) {
-            t.join();
-        }
-#endif
+        m_possible_max_shards = conv2d(out_tensor,
+                                       m_img_patch_mat,
+                                       m_kernel_mat,
+                                       kernel,
+                                       in_tensor,
+                                       bias,
+                                       m_stride,
+                                       m_apply_relu,
+                                       m_configured_shards);
     }
 
 
-    Add::Add(const std::string &var_name_out, const std::string &var_name_in_1, const std::string &var_name_in_2)
+    Add::Add(const std::string &var_name_out,
+             const std::string &var_name_in_1,
+             const std::string &var_name_in_2,
+             const bool apply_relu)
         : m_var_name_out(var_name_out),
           m_var_name_in_1(var_name_in_1),
-          m_var_name_in_2(var_name_in_2) {
+          m_var_name_in_2(var_name_in_2),
+          m_apply_relu(apply_relu) {
     }
 
     void Add::compute(VariableStore &variable_store) {
         const auto &in_tensor_1 = variable_store[m_var_name_in_1];
         const auto &in_tensor_2 = variable_store[m_var_name_in_2];
+        auto &out_tensor = zeros_cached(variable_store, m_var_name_out, in_tensor_1.shape);
         if (in_tensor_1.shape != in_tensor_2.shape) {
             throw std::runtime_error("Add: shapes do not match.");
         }
 
-        auto &out_tensor = zeros_cached(variable_store, m_var_name_out, in_tensor_1.shape);
+        // data pointers
+        auto *p_out = out_tensor.data_ptr();
+        auto *p_in1 = in_tensor_1.data_ptr();
+        auto *p_in2 = in_tensor_2.data_ptr();
 
-        for (int i = 0; i < out_tensor.num_elements(); i++) {
-            out_tensor.get(i) = in_tensor_1.get(i) + in_tensor_2.get(i);
+        // iterate through tensor data
+        const int num_elements = out_tensor.num_elements();
+        for (int i = 0; i < num_elements; i++) {
+            DataElement res = *p_in1 + *p_in2;
+            if (m_apply_relu) {
+                res = std::max(res, 0.0f);
+            }
+            *p_out = res;
+
+            p_in1++;
+            p_in2++;
+            p_out++;
         }
     }
 }

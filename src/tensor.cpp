@@ -27,7 +27,7 @@ namespace inference_engine {
         // read data (all at once, requires same float type)
         const int data_num_elements = num_elements(res.shape);
         res.data.resize(data_num_elements);
-        f.read(reinterpret_cast<char *>(res.data.data()), sizeof(float) * data_num_elements);
+        f.read(reinterpret_cast<char *>(res.data_ptr()), sizeof(float) * data_num_elements);
         return res;
     }
 
@@ -44,7 +44,7 @@ namespace inference_engine {
     }
 
     Tensor zeros(const Shape &shape) {
-        return Tensor(shape, Data(num_elements(shape), 0));
+        return Tensor{shape, Data(num_elements(shape), 0)};
     }
 
     std::string to_string(const Tensor &t) {

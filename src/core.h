@@ -20,7 +20,8 @@ namespace inference_engine {
                         bool trans1,
                         const Tensor &mat2,
                         bool trans2,
-                        const Tensor &bias);
+                        const Tensor &bias,
+                        bool apply_relu = false);
 }
 
 #endif //CPP_CORE_H
