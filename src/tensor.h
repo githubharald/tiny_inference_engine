@@ -21,6 +21,9 @@ namespace inference_engine {
     /// create tensor filled with zeros
     Tensor zeros(const Shape &shape);
 
+    /// create tensor filled with ones
+    Tensor ones(const Shape &shape);
+
     /// Load tensor from file
     Tensor load_tensor(const std::string &fn);
 

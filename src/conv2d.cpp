@@ -56,6 +56,8 @@ namespace inference_engine {
                const bool apply_relu,
                const int max_num_shards
     ) {
+        // TODO: add shape checks, and add explicit padding (other than "same")
+
         // see https://sahnimanas.github.io/post/anatomy-of-a-high-performance-convolution/
         const int channel_out = kernel.shape[0];
         const int channel_in = kernel.shape[1];

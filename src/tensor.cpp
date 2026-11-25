@@ -47,6 +47,10 @@ namespace inference_engine {
         return Tensor{shape, Data(num_elements(shape), 0)};
     }
 
+    Tensor ones(const Shape &shape) {
+        return Tensor{shape, Data(num_elements(shape), 1)};
+    }
+
     std::string to_string(const Tensor &t) {
         std::string res("shape: ");
         for (const auto s: t.shape) {

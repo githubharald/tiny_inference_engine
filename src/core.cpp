@@ -5,12 +5,25 @@
 namespace inference_engine {
     Tensor softmax(const Tensor &t, const bool apply_log) {
         Tensor res = zeros(t.shape);
-        float exp_sum = 0;
-        for (int i = 0; i < t.num_elements(); i++) {
-            exp_sum += std::exp(t.get(i)); // TODO make numerically stable (can overflow)
+
+        // find min value to subtract to avoid overflow
+        float min_val = std::numeric_limits<float>::max();
+        for (const auto val: t.data) {
+            if (val < min_val) {
+                min_val = val;
+            }
         }
-        for (int i = 0; i < res.num_elements(); i++) {
-            auto val = std::exp(t.get(i)) / exp_sum;
+
+        // denominator
+        float exp_sum = 0;
+        for (const auto v: t.data) {
+            exp_sum += std::exp(v - min_val);
+        }
+
+        // compute numerator, and divide by denominator
+        const int num_elements = res.num_elements();
+        for (int i = 0; i < num_elements; i++) {
+            auto val = std::exp(t.get(i) - min_val) / exp_sum;
             if (apply_log) {
                 val = std::log(val);
             }
@@ -22,7 +35,8 @@ namespace inference_engine {
     int argmax(const Tensor &t) {
         int res = 0;
         float max_val = t.get(0);
-        for (int i = 0; i < t.num_elements(); i++) {
+        const int num_elements = t.num_elements();
+        for (int i = 0; i < num_elements; i++) {
             if (t.get(i) > max_val) {
                 max_val = t.get(i);
                 res = i;

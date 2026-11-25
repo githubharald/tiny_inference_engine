@@ -27,10 +27,11 @@ namespace inference_engine {
                             const int y_in = stride * y + ky - pad;
                             const int x_in = stride * x + kx - pad;
 
-                            if (y_in < 0 || y_in >= height_in || x_in < 0 || x_in >= width_in) {
-                                continue;
+                            float val=0;
+                            if (!(y_in < 0 || y_in >= height_in || x_in < 0 || x_in >= width_in)) {
+                                val=in_tensor.get_3d(c, y_in, x_in);
                             }
-                            max_val = std::max(max_val, in_tensor.get_3d(c, y_in, x_in));
+                            max_val = std::max(max_val, val);
                         }
                     }
                     *p_out = max_val;

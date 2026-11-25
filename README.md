@@ -79,6 +79,14 @@ with last parameter set to `true`:
 
 This stores the optimal value in the model directory that will be used in the next runs (put flag back to `false`).
 
+### Run tests
+
+Tests only partially cover the code right now.
+The goal is to at least fully cover the conv2d and maxpool2d implementations to ensure proper functioning.
+
+After building the demo the tests can be run with this command:
+```ctest --test-dir build --output-on-failure```
+
 ## Technical Insights
 
 ### How it works
